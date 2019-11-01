@@ -119,7 +119,7 @@ func (f *Field256) Divide(a, b uint8) uint8 {
 		// as we use modular arithmetic, negative means circling back into the set from the end
 		difference += 255
 	} else {
-		// don't leak timing info
+		// this assignment's sole purpose is to not leak timing info
 		difference += 0
 	}
 	return uint8(subtle.ConstantTimeByteEq(a, 0)^0x01) * exp229[difference]
