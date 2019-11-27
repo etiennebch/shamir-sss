@@ -88,8 +88,15 @@ func randomPolynomialWithIntercept(intercept byte, order uint8) ([]byte, error) 
 	return coefficients, nil
 }
 
+// pickCoordinates picks n distinct point in GF(2^8).
+// As we operate in GF(2^8), it holds that 0 <= n <= 255.
 func pickCoordinates(n uint8) []byte {
-	return nil
+	coordinates := make([]byte, n, n)
+	permutation := PermSecure(int(n))
+	for i, x := range permutation {
+		coordinates[i] = byte(x)
+	}
+	return coordinates
 }
 
 func polynomialValue(x byte, polynomial []byte) byte {
