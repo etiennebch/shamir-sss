@@ -44,10 +44,10 @@ import (
 // Recipient i would receive the byte array [y[0], y[1], ... y[p-1], x[i]].
 func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	if threshold > n {
-		log.Fatalf("threshold value cannot be greater than the number of shares to deal.")
+		log.Fatal("the threshold value cannot be greater than the number of shares to deal.")
 	}
 	if len(secret) == 0 {
-		log.Fatalf("the secret cannot be empty.")
+		log.Fatal("the secret cannot be empty.")
 	}
 
 	// allocate a 2D array to hold the shares of the n participant
@@ -62,6 +62,9 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 		polynomial, err := randomPolynomialWithIntercept(chunk, threshold)
 		if err != nil {
 			// TODO: timing side-channel attack possible ?
+			// as we don't want to leak sensitive info in the logs, we don't include the error
+			// message in the log.
+			log.Fatalf("failed to generate random polynomial.")
 		}
 		// compute the value of the polynomial for every coordinate x[i]
 		for i := 0; uint8(i) < n; i++ {
