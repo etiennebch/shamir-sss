@@ -51,19 +51,14 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	}
 
 	// allocate a 2D array to hold the shares of the n participant
-	shares := make([][]byte, n, n)
-	// allocate each recipient's shares array.
-	for i := range shares {
-		shares[i] = make([]byte, len(secret)+1, len(secret)+1)
-	}
+	shares := initSharesMatrix(n, uint(len(secret)))
 	x := pickCoordinates(n)
 
 	for idx, chunk := range secret {
 		polynomial, err := randomPolynomialWithIntercept(chunk, threshold)
 		if err != nil {
 			// TODO: timing side-channel attack possible ?
-			// as we don't want to leak sensitive info in the logs, we don't include the error
-			// message in the log.
+			// error message not included in the log to avoid leaking sensitive information.
 			log.Fatalf("failed to generate random polynomial.")
 		}
 		// compute the value of the polynomial for every coordinate x[i]
@@ -110,4 +105,13 @@ func pickCoordinates(n uint8) []byte {
 
 func polynomialValue(x byte, polynomial []byte) byte {
 	return 0
+}
+
+// initSharesMatrix initializes an empty matrix to hold the shares as the result of Split.
+func initSharesMatrix(n uint8, secretLength uint) [][]byte {
+	matrix := make([][]byte, n, n)
+	for i := range matrix {
+		matrix[i] = make([]byte, secretLength+1, secretLength+1)
+	}
+	return matrix
 }
