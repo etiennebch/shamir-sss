@@ -1,6 +1,9 @@
 package main
 
-import "crypto/rand"
+import (
+	"crypto/rand"
+	"log"
+)
 
 // Split splits a secret of arbitrary length into n shares using Shamir secret sharing scheme, such
 // that at least k <= n shares (known as the threshold) must be combined in order to recover the secret.
@@ -41,13 +44,13 @@ import "crypto/rand"
 // Recipient i would receive the byte array [y[0], y[1], ... y[p-1], x[i]].
 func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	if threshold > n {
-		// TODO: error
+		log.Fatalf("threshold value cannot be greater than the number of shares to deal.")
 	}
 	if len(secret) == 0 {
-		// TODO: error
+		log.Fatalf("the secret cannot be empty.")
 	}
 
-	// allocate a 2D array that will hold the shares of the n recipients
+	// allocate a 2D array to hold the shares of the n participant
 	shares := make([][]byte, n, n)
 	// allocate each recipient's shares array.
 	for i := range shares {
@@ -66,25 +69,28 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 			shares[i][idx] = share
 		}
 	}
-	// TODO: add x[i] to results
+
+	// append the point x[i] to each participant's share.
+	for i := 0; uint8(i) < n; i++ {
+		shares[i][len(secret)] = x[i]
+	}
 	return shares, nil
 }
 
 func Recover() {}
 
-// randomPolynomialWithIntercept choses order-1 random coefficients in GF(2^8) and sets the polynomial
+// randomPolynomialWithIntercept picks order-1 random coefficients in GF(2^8) and sets the polynomial
 // intercept according to the value passed in.
-// In the context of a (k,n) Shamir scheme, the polynomial order must be 0 <= k <= n. As we use GF(2^8),
-// the polynomial order is between 0 and 255.
+// In the context of a (k,n) Shamir scheme, the polynomial order must be k. As we use GF(2^8),
+// the maximum polynomial order is the maximum number of distributable shares, that is 2^8-1.
 // The returned value is a byte array b of length k such that b[0] = intercept.
 func randomPolynomialWithIntercept(intercept byte, order uint8) ([]byte, error) {
 	coefficients := make([]byte, order)
-	_, err := rand.Read(coefficients)
+	coefficients[0] = intercept
+	_, err := rand.Read(coefficients[1:])
 	if err != nil {
 		return nil, err
 	}
-	// override the first slot with the intercept
-	coefficients[0] = intercept
 	return coefficients, nil
 }
 
