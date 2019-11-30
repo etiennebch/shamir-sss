@@ -95,6 +95,8 @@ func Split(secret []byte, n, threshold uint8) [][]byte {
 // reconstruct the secret.
 // All shares must be the same size and are assumed to follow the structure provided by the Split
 // function: [y[0], ..., y[p-1],x[i]].
+//
+//
 func Recover(shares [][]byte) []byte {
 	if len(shares) < int(minThreshold) {
 		log.Fatal("the number of shares provided is below the minimum threshold.")
@@ -191,12 +193,14 @@ func interpolatePolynomial(x, y []byte, z uint8) byte {
 
 	for i := 0; i < order; i++ {
 		// compute Lagrange's basis ith polynomial value at point z
-		var basis uint8
+		var basis uint8 = 1
 		for j := 0; j < order; j++ {
 			if j != i {
 				numerator := field.Add(z, x[j])
 				denominator := field.Add(x[i], x[j])
 				basis = field.Multiply(basis, field.Divide(numerator, denominator))
+			} else {
+				continue
 			}
 		}
 		result = field.Add(field.Multiply(basis, y[i]), result)
