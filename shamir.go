@@ -8,6 +8,9 @@ import (
 	"github.com/etiennebch/shamir-sss/random"
 )
 
+const minSecretLength int = 1
+const minThreshold uint8 = 2
+
 // Split splits a secret of length p into n shares using Shamir secret sharing scheme, such
 // that at least 2 <= k <= n shares (known as the threshold) must be combined in order to recover
 // the secret.
@@ -55,17 +58,17 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	if threshold > n {
 		log.Fatal("the threshold value cannot be greater than the number of shares to deal.")
 	}
-	if len(secret) == 0 {
+	if len(secret) < minSecretLength {
 		log.Fatal("the secret cannot be empty.")
 	}
-	if threshold < 2 {
+	if threshold < minThreshold {
 		log.Fatal("the threshold value must be at least 2.")
 	}
 
 	shares := initShareMatrix(n, uint(len(secret)))
 	x := pickCoordinates(n)
 
-	for idx, chunk := range secret {
+	for j, chunk := range secret {
 		polynomial, err := randomPolynomial(threshold)
 		if err != nil {
 			// TODO: timing side-channel attack possible ?
@@ -77,7 +80,7 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 		// compute the value of the polynomial for every coordinate x[i]
 		for i := 0; uint8(i) < n; i++ {
 			share := evaluatePolynomial(x[i], polynomial)
-			shares[i][idx] = share
+			shares[i][j] = share
 		}
 	}
 
@@ -88,7 +91,42 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	return shares, nil
 }
 
-// func Recover() {}
+// Recover takes shares as input and combines them using Lagrange's interpolation in order to
+// reconstruct the secret.
+// All shares must be the same size and are assumed to follow the structure provided by the Split
+// function: [y[0], ..., y[p-1],x[i]].
+func Recover(shares [][]byte) []byte {
+	if len(shares) < int(minThreshold) {
+		log.Fatal("the number of shares provided is below the minimum threshold.")
+	}
+	shareLength := len(shares[0])
+	for _, share := range shares {
+		if len(share) != shareLength {
+			log.Fatal("all shares must be the same length.")
+		}
+	}
+
+	// buffer to store the recovered secret
+	secret := make([]byte, shareLength-1)
+
+	// buffer to store the participant coordinates (the last component of each participant's share)
+	coordinates := make([]byte, len(shares))
+	for i, share := range shares {
+		coordinates[i] = share[shareLength-1]
+	}
+
+	// recover the secret byte by byte
+	for j := range secret {
+		// buffer to store the values of the polynomial provided by the participant's shares
+		values := make([]byte, len(shares))
+		for i, share := range shares {
+			values[i] = share[j]
+		}
+		secret[j] = interpolatePolynomial(coordinates, values, 0)
+	}
+
+	return secret
+}
 
 // randomPolynomial generates a polynomial of the provided order with random coefficients in GF(2^8)
 // In the context of a (k,n) Shamir scheme, the polynomial order must be k. As we use GF(2^8),
@@ -114,6 +152,7 @@ func pickCoordinates(n uint8) []byte {
 }
 
 // evaluatePolynomial computes the value of a polynomial at point x, using Horner's algorithm.
+// computation is performed in GF(2^8).
 func evaluatePolynomial(x byte, polynomial []byte) byte {
 	if x == 0 {
 		return polynomial[0]
@@ -121,6 +160,7 @@ func evaluatePolynomial(x byte, polynomial []byte) byte {
 
 	degree := len(polynomial) - 1
 	// initialize Horner's algorithm with the nth coefficient of the polynomial
+	// https://en.wikipedia.org/wiki/Horner%27s_method
 	value := polynomial[degree]
 	field := galois.NewField256()
 	for i := degree - 1; i >= 0; i-- {
@@ -130,11 +170,36 @@ func evaluatePolynomial(x byte, polynomial []byte) byte {
 }
 
 // initShareMatrix initializes an empty share matrix.
-// the matrix is of dimensions [(secretLength+1) * n]
+// the matrix is of dimensions [(secretLength+1) * n].
 func initShareMatrix(n uint8, secretLength uint) [][]byte {
 	matrix := make([][]byte, n, n)
 	for i := range matrix {
 		matrix[i] = make([]byte, secretLength+1, secretLength+1)
 	}
 	return matrix
+}
+
+// interpolatePolynomial interpolates a polynomial using Lagrange's algorithm.
+// computation is performed in GF(2^8).
+// x and y are vectors holding coordinates and corresponding values to interpolate the polynomial.
+// the function return the value of the polynomial evaluated at z.
+func interpolatePolynomial(x, y []byte, z uint8) byte {
+	// maximum order of the polynomial
+	order := len(x)
+	var result uint8
+	field := galois.NewField256()
+
+	for i := 0; i < order; i++ {
+		// compute Lagrange's basis ith polynomial value at point z
+		var basis uint8
+		for j := 0; j < order; j++ {
+			if j != i {
+				numerator := field.Add(z, x[j])
+				denominator := field.Add(x[i], x[j])
+				basis = field.Multiply(basis, field.Divide(numerator, denominator))
+			}
+		}
+		result = field.Add(field.Multiply(basis, y[i]), result)
+	}
+	return result
 }
