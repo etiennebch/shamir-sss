@@ -3,26 +3,32 @@ package main
 import (
 	"crypto/rand"
 	"log"
+
+	"github.com/etiennebch/shamir-sss/galois"
+	"github.com/etiennebch/shamir-sss/random"
 )
 
-// Split splits a secret of arbitrary length into n shares using Shamir secret sharing scheme, such
-// that at least k <= n shares (known as the threshold) must be combined in order to recover the secret.
+// Split splits a secret of length p into n shares using Shamir secret sharing scheme, such
+// that at least 2 <= k <= n shares (known as the threshold) must be combined in order to recover
+// the secret.
 // We refer to such a scheme as a (k,n) Shamir scheme.
 //
-// All computation is done in the Galois finite field 2^8 - GF(2^8) - as it is convenient for byte-oriented
-// computation, and is the de-facto field used by the AES cipher.
+// All computation is done in the Galois finite field 2^8 - GF(2^8) - as it is convenient for
+// byte-oriented computation, and is the de-facto field used by the AES cipher.
 // The maximum number of shares that can be dealt is the 2^8-1.
 //
-// The secret is processed one byte at a time. This means that every byte of the secret of length p is split using
-// Shamir's scheme. In a (k,n) Shamir scheme, it yields n "mini-shares" for every byte of the secret.
-// Thus, every participant in the scheme receives a share, which is a collection of the p mini-shares attributed
-// to him. This enables processing arbitrary length secrets.
+// The secret is processed one byte at a time. Every byte of the secret is split using Shamir's scheme.
+// In a (k,n) Shamir scheme, each byte of the secret yields n "mini-shares".
+// Thus, every participant in the scheme receives a share, which is a collection of the p mini-shares
+// attributed to him and an additional value (see below).
 //
-// In addition to the value of the shares themselves, we need to keep track of the point to evaluate the polynomials
-// used to split every byte of the secret. This point is one byte long since we operate in GF(2^8).
-// Assuming that for a given participant, we use the same point across all the mini-shares, the total length of a
-// share is therefore p + 1.
-// Using the same point across mini-shares does not reduce security so long as we still use distinct points for distinct participants.
+// The result of Split is a share matrix of dimensions [(p+1) * n]. Each column of the matrix is a
+// participant's secret. For every column i, the first p components make the share of participant i.
+// Each component encodes is the share of the corresponding byte of the secret.
+// The last component is the coordinate x[i] used to evaluate the polynomials for participant i.
+//
+// Using the same point across mini-shares does not reduce security so long as we still use distinct
+// points for distinct participants.
 //
 // Note that Shamir secret sharing scheme is secure in that with less than k shares, no adversary can
 // learn anything about the secret. However, Shamir's scheme does leak the size of the secret
@@ -34,14 +40,17 @@ import (
 // use Shamir secret sharing on the decryption key rather than on the underlying secret.
 //
 // The algorithm used is as follows:
-// For every byte of the secret of length p, we chose a random polynomial with coefficients in GF(2^8), and set
-// the polynomial's intercept to the value of the byte being processed.
-// Then, we pick n distinct points from GF(2^8) such that each share's recipient will be assigned a
-// unique point that we denote x[i], 0 <= i <= n <= 255.
-// Then, for each byte of the secret, we evaluate its associated polynomial for all x[i] and the value
-// of the polynomial at that point is the mini-share for recipient i.
-// We return a 2D byte array containing the mini-shares + x[i] for recipient i.
-// Recipient i would receive the byte array [y[0], y[1], ... y[p-1], x[i]].
+//
+// For every byte chunk c of the secret of length p, a random polynomial with coefficients in GF(2^8) is picked.
+// 	- The polynomial's intercept is set to c.
+// 	- Then, we pick n distinct points from GF(2^8) such that each participant is assigned a unique
+// 	  point x[i], 0 <= i <= n <= 255.
+// 	- Then, we evaluate the polynomial for all x[i] and the resulting value y is the share of c for
+//	  participant i. y[i] is added to the result share matrix.
+//
+// For all participants i, append x[i] to the corresponding column in the share matrix.
+// Recipient i would receive the column [y[0], y[1], ... y[p-1], x[i]].
+// Return the share matrix.
 func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	if threshold > n {
 		log.Fatal("the threshold value cannot be greater than the number of shares to deal.")
@@ -49,21 +58,25 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	if len(secret) == 0 {
 		log.Fatal("the secret cannot be empty.")
 	}
+	if threshold < 2 {
+		log.Fatal("the threshold value must be at least 2.")
+	}
 
-	// allocate a 2D array to hold the shares of the n participant
-	shares := initSharesMatrix(n, uint(len(secret)))
+	shares := initShareMatrix(n, uint(len(secret)))
 	x := pickCoordinates(n)
 
 	for idx, chunk := range secret {
-		polynomial, err := randomPolynomialWithIntercept(chunk, threshold)
+		polynomial, err := randomPolynomial(threshold)
 		if err != nil {
 			// TODO: timing side-channel attack possible ?
 			// error message not included in the log to avoid leaking sensitive information.
 			log.Fatalf("failed to generate random polynomial.")
 		}
+		// set the polynomial intercept to the secret chunk
+		polynomial[0] = chunk
 		// compute the value of the polynomial for every coordinate x[i]
 		for i := 0; uint8(i) < n; i++ {
-			share := polynomialValue(x[i], polynomial)
+			share := evaluatePolynomial(x[i], polynomial)
 			shares[i][idx] = share
 		}
 	}
@@ -75,16 +88,13 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	return shares, nil
 }
 
-func Recover() {}
+// func Recover() {}
 
-// randomPolynomialWithIntercept picks order-1 random coefficients in GF(2^8) and sets the polynomial
-// intercept according to the value passed in.
+// randomPolynomial generates a polynomial of the provided order with random coefficients in GF(2^8)
 // In the context of a (k,n) Shamir scheme, the polynomial order must be k. As we use GF(2^8),
 // the maximum polynomial order is the maximum number of distributable shares, that is 2^8-1.
-// The returned value is a byte array b of length k such that b[0] = intercept.
-func randomPolynomialWithIntercept(intercept byte, order uint8) ([]byte, error) {
+func randomPolynomial(order uint8) ([]byte, error) {
 	coefficients := make([]byte, order)
-	coefficients[0] = intercept
 	_, err := rand.Read(coefficients[1:])
 	if err != nil {
 		return nil, err
@@ -96,19 +106,32 @@ func randomPolynomialWithIntercept(intercept byte, order uint8) ([]byte, error) 
 // As we operate in GF(2^8), it holds that 0 <= n <= 255.
 func pickCoordinates(n uint8) []byte {
 	coordinates := make([]byte, n, n)
-	permutation := PermSecure(int(n))
+	permutation := random.PermSecure(int(n))
 	for i, x := range permutation {
 		coordinates[i] = byte(x)
 	}
 	return coordinates
 }
 
-func polynomialValue(x byte, polynomial []byte) byte {
-	return 0
+// evaluatePolynomial computes the value of a polynomial at point x, using Horner's algorithm.
+func evaluatePolynomial(x byte, polynomial []byte) byte {
+	if x == 0 {
+		return polynomial[0]
+	}
+
+	degree := len(polynomial) - 1
+	// initialize Horner's algorithm with the nth coefficient of the polynomial
+	value := polynomial[degree]
+	field := galois.NewField256()
+	for i := degree - 1; i >= 0; i-- {
+		value = field.Add(polynomial[i], field.Multiply(value, x))
+	}
+	return value
 }
 
-// initSharesMatrix initializes an empty matrix to hold the shares as the result of Split.
-func initSharesMatrix(n uint8, secretLength uint) [][]byte {
+// initShareMatrix initializes an empty share matrix.
+// the matrix is of dimensions [(secretLength+1) * n]
+func initShareMatrix(n uint8, secretLength uint) [][]byte {
 	matrix := make([][]byte, n, n)
 	for i := range matrix {
 		matrix[i] = make([]byte, secretLength+1, secretLength+1)
