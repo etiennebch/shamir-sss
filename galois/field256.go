@@ -98,7 +98,7 @@ func (f *Field256) Add(a, b uint8) uint8 {
 // We compute the value using the logarithm approach which is fast using lookup tables, at the expense
 // of storing 512 bytes in memory.
 func (f *Field256) Multiply(a, b uint8) uint8 {
-	sum := (log229[a] + log229[b]) % 255
+	sum := (int(log229[a]) + int(log229[b])) % 255
 	exponentiated := exp229[sum]
 
 	// If a or b is 0, we must return 0.
@@ -108,7 +108,7 @@ func (f *Field256) Multiply(a, b uint8) uint8 {
 	// We note that 0x00 OR 0x00 = 0x00
 	// 		0x00 XOR 0x01 = 0x01 -> multiply 1 by exponentiated returns the result
 	// 		0x01 XOR 0x01 = 0x00 -> multiply 0 by exponentiated returns 0
-	return uint8(subtle.ConstantTimeByteEq(a, 0)|subtle.ConstantTimeByteEq(b, 0)) ^ 0x01*exponentiated
+	return (uint8(subtle.ConstantTimeByteEq(a, 0)|subtle.ConstantTimeByteEq(b, 0)) ^ 0x01) * exponentiated
 }
 
 // Divide computes the division a/b in the Galois finite field 2^8.
@@ -119,7 +119,7 @@ func (f *Field256) Divide(a, b uint8) uint8 {
 		// https://github.com/hashicorp/vault/blob/master/shamir/shamir.go
 		panic("division by 0")
 	}
-	difference := (log229[a] - log229[b]) % 255
+	difference := (int(log229[a]) - int(log229[b])) % 255
 	if difference < 0 {
 		// as we use modular arithmetic, negative means circling back into the set from the end
 		difference += 255
