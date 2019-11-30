@@ -80,6 +80,11 @@ var exp229 = [256]uint8{
 // Field256 represents the Galois finite field 2^8.
 type Field256 struct{}
 
+// NewField256 returns a pointer to a new Field256 struct.
+func NewField256() *Field256 {
+	return &Field256{}
+}
+
 // Add computes the addition a+b in the Galois finite field 2^8.
 //
 // the addition in GF(2^8) is equivalent to XOR.
