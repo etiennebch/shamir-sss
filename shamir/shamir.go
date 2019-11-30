@@ -1,4 +1,4 @@
-package main
+package shamir
 
 import (
 	"crypto/rand"
@@ -54,7 +54,7 @@ const minThreshold uint8 = 2
 // For all participants i, append x[i] to the corresponding column in the share matrix.
 // Recipient i would receive the column [y[0], y[1], ... y[p-1], x[i]].
 // Return the share matrix.
-func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
+func Split(secret []byte, n, threshold uint8) [][]byte {
 	if threshold > n {
 		log.Fatal("the threshold value cannot be greater than the number of shares to deal.")
 	}
@@ -88,7 +88,7 @@ func Split(secret []byte, n, threshold uint8) ([][]byte, error) {
 	for i := 0; uint8(i) < n; i++ {
 		shares[i][len(secret)] = x[i]
 	}
-	return shares, nil
+	return shares
 }
 
 // Recover takes shares as input and combines them using Lagrange's interpolation in order to
