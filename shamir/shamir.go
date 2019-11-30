@@ -71,8 +71,6 @@ func Split(secret []byte, n, threshold uint8) [][]byte {
 	for j, chunk := range secret {
 		polynomial, err := randomPolynomial(threshold)
 		if err != nil {
-			// TODO: timing side-channel attack possible ?
-			// error message not included in the log to avoid leaking sensitive information.
 			log.Fatalf("failed to generate random polynomial.")
 		}
 		// set the polynomial intercept to the secret chunk
@@ -95,8 +93,6 @@ func Split(secret []byte, n, threshold uint8) [][]byte {
 // reconstruct the secret.
 // All shares must be the same size and are assumed to follow the structure provided by the Split
 // function: [y[0], ..., y[p-1],x[i]].
-//
-//
 func Recover(shares [][]byte) []byte {
 	if len(shares) < int(minThreshold) {
 		log.Fatal("the number of shares provided is below the minimum threshold.")
@@ -148,7 +144,8 @@ func pickCoordinates(n uint8) []byte {
 	coordinates := make([]byte, n, n)
 	permutation := random.PermSecure(int(n))
 	for i, x := range permutation {
-		coordinates[i] = byte(x)
+		// +1 since 0 cannot be picked as it corresponds to the secret
+		coordinates[i] = byte(x + 1)
 	}
 	return coordinates
 }
