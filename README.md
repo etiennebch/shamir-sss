@@ -9,6 +9,7 @@ as I am trying to validate the implementation.
 All computation is done using AES Galois Finite Field 2^8, which means the secret cannot be split between more than 255 participants. A minimum threshold of 2 is required.
 
 To run the demo if you have go already installed on your computer:
+
 ```bash
 git clone https://github.com/etiennebch/shamir-sss
 cd shamir-sss
@@ -16,6 +17,7 @@ go run main.go
 ```
 
 To use as a dependency:
+
 ```bash
 go get -u github.com/etiennebch/shamir-sss
 ```
