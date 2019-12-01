@@ -19,6 +19,7 @@ To use as a dependency:
 ```bash
 go get -u github.com/etiennebch/shamir-sss
 ```
+
 ```go
 import shamir "github.com/etiennebch/shamir-sss"
 
