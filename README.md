@@ -3,7 +3,7 @@ A Go implementation of Shamir Secret Sharing Scheme, to learn more about thresho
 **As I am not a crypto expert, this is not suitable for production use.**
 
 I welcome any feedback on the implementation and security remarks (pull requests are the way to go),
-as I am trying to validate the implemntation.
+as I am trying to validate the implementation.
 
 # how to use
 All computation is done using AES Galois Finite Field 2^8, which means the secret cannot be split between more than 255 participants. A minimum threshold of 2 is required.
