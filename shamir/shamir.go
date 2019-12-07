@@ -141,13 +141,13 @@ func randomPolynomial(order uint8) ([]byte, error) {
 // pickCoordinates picks n distinct point in GF(2^8).
 // As we operate in GF(2^8), it holds that 0 <= n <= 255.
 func pickCoordinates(n uint8) []byte {
-	coordinates := make([]byte, n, n)
-	permutation := random.PermSecure(int(n))
+	coordinates := make([]byte, 255, 255)
+	permutation := random.PermSecure(255)
 	for i, x := range permutation {
 		// +1 since 0 cannot be picked as it corresponds to the secret
 		coordinates[i] = byte(x + 1)
 	}
-	return coordinates
+	return coordinates[0:n]
 }
 
 // evaluatePolynomial computes the value of a polynomial at point x, using Horner's algorithm.
